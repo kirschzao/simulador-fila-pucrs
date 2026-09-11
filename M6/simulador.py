@@ -1,3 +1,5 @@
+from pathlib import Path
+
 A = 1_103_515_245
 C = 12_345
 M = 2 ** 31
@@ -5,14 +7,11 @@ SEED = 7
 QTD_ALEATORIOS = 100_000
 PRIMEIRA_CHEGADA = 2.5
 
-# Rede de filas: cada fila declara servidores, capacidade e intervalo de atendimento.
-# "chegada" só existe em filas que recebem clientes de fora da rede.
 REDE = {
     "F1": {"servidores": 2, "capacidade": 3, "atendimento": (4.0, 5.0), "chegada": (1.0, 5.0)},
     "F2": {"servidores": 1, "capacidade": 5, "atendimento": (1.0, 3.0)},
 }
 
-# Roteamento: origem -> [(destino, probabilidade)]. destino None = sai do sistema.
 ROTEAMENTO = {
     "F1": [("F2", 1.0)],
     "F2": [(None, 1.0)],
@@ -75,8 +74,6 @@ def destino_de(origem):
 
 
 def roteia(origem):
-    # Com roteamento determinístico (uma única rota de probabilidade 1) não se consome
-    # aleatório: o destino já é conhecido.
     rotas = ROTEAMENTO[origem]
     if len(rotas) == 1:
         return rotas[0][0]
@@ -97,7 +94,6 @@ def tempo_atendimento(fila):
 
 
 def admite(fila, origem):
-    """Coloca um cliente na fila, agendando sua saída se houver servidor livre."""
     if fila.status() < fila.capacidade:
         fila.entra()
         if fila.status() <= fila.servidores:
@@ -108,7 +104,6 @@ def admite(fila, origem):
 
 
 def libera(fila):
-    """Retira o cliente atendido e puxa o próximo da fila, se houver."""
     fila.sai()
     if fila.status() >= fila.servidores:
         tipo = "SAIDA" if roteia(fila.nome) is None else "PASSAGEM"
@@ -177,5 +172,5 @@ saida_final = [
 texto = "\n".join(saida_final)
 print(texto)
 
-with open("resultados.txt", "w", encoding="utf-8") as f:
+with open(Path(__file__).with_name("resultados.txt"), "w", encoding="utf-8") as f:
     f.write(texto + "\n")

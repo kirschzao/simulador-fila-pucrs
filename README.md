@@ -72,8 +72,8 @@ REDE = {
 }
 
 ROTEAMENTO = {
-    "F1": [("F2", 1.0)],   # 100% da saída da Fila 1 entra na Fila 2
-    "F2": [(None, 1.0)],   # destino None = cliente deixa o sistema
+    "F1": [("F2", 1.0)],
+    "F2": [(None, 1.0)],
 }
 ```
 
