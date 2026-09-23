@@ -16,10 +16,81 @@ Simulador Genérico para Rede de Filas
 
 ## Execução
 
+Python 3.8+. Sem dependências externas.
+
 ```bash
-python3 simulador.py
-python3 M6/simulador.py
-python3 T1/simulador.py T1/modelo.yml
+git clone https://github.com/kirschzao/simulador-fila-pucrs.git
+cd simulador-fila-pucrs
+
+python3 simulador.py                    # M4 | fila única
+python3 M6/simulador.py                 # M6 | duas filas em tandem
+python3 T1/simulador.py T1/modelo.yml   # T1 | rede de filas genérica
+```
+
+O relatório sai no terminal e num `.txt` ao lado do script.
+
+## T1 | Como funciona
+
+O simulador do T1 não tem topologia fixa: a rede inteira vem de um arquivo `.yml`, no mesmo estilo
+do simulador do módulo 3. Para simular outra rede, escreva outro `.yml` e passe como argumento — o
+código não muda.
+
+```bash
+python3 T1/simulador.py <modelo.yml> [saida.txt]
+```
+
+### Formato do `.yml`
+
+```yaml
+arrivals:               # filas que recebem clientes de fora + instante da 1ª chegada
+  F1: 2.0
+queues:
+  F1:
+    servers: 1          # nº de servidores
+    minArrival: 2.0     # intervalo entre chegadas externas (só nas filas de arrivals)
+    maxArrival: 4.0
+    minService: 1.0     # intervalo de atendimento
+    maxService: 2.0
+                        # sem capacity = capacidade infinita -> G/G/1
+  F2:
+    servers: 2
+    capacity: 5         # capacidade total, servidores inclusos -> G/G/2/5
+    minService: 4.0
+    maxService: 8.0
+network:                # roteamento; o que faltar para 1,0 é saída do sistema
+  - source: F1
+    target: F2
+    probability: 0.2
+rndnumbersPerSeed: 100000   # encerra ao consumir este aleatório
+seeds:
+  - 7
+```
+
+Modelos prontos: `T1/modelo.yml` (enunciado), `T1/modelo-fila2-4a6.yml` (variante da Fila 2),
+`T1/modelo-m6.yml` (rede do M6).
+
+### Motor
+
+Dois eventos: `CHEGADA` (cliente vindo de fora) e `SAIDA` (fim de atendimento numa fila). Antes de
+tratar qualquer evento, o tempo decorrido é contabilizado no estado atual de **todas** as filas —
+por isso os tempos acumulados de cada fila somam o tempo global.
+
+Ordem de consumo dos aleatórios numa saída de fila:
+
+1. o cliente deixa a origem; se há alguém esperando, sorteia o atendimento da origem;
+2. sorteia o destino — um aleatório, só quando a fila tem mais de uma rota;
+3. admite no destino (ou conta perda, se cheio); se entrar em serviço, sorteia o atendimento do
+   destino.
+
+### Validação
+
+`T1/modelo-m6.yml` descreve a rede do M6 em YAML. Rodada neste simulador, reproduz
+`M6/resultados.txt` em todas as casas decimais — e aquele resultado já havia sido conferido contra
+o `simulator.jar` da disciplina.
+
+```bash
+python3 T1/simulador.py T1/modelo-m6.yml T1/resultados-m6.txt
+diff <(grep -E '^ ' T1/resultados-m6.txt) <(grep -E '^ ' M6/resultados.txt) && echo OK
 ```
 
 ## M4 | Resultados
