@@ -4,7 +4,8 @@ Simulador de filas `G/G/c/K` com gerador de números pseudoaleatórios pelo Mét
 Linear.
 
 **Disciplina:** Simulação e Métodos Analíticos — PUCRS
-**Módulos:** M4 | Simulador para uma Fila · M6 | Simulador para Filas em *Tandem*
+**Módulos:** M4 | Simulador para uma Fila · M6 | Simulador para Filas em *Tandem* · T1 (M8) |
+Simulador Genérico para Rede de Filas
 
 ## Grupo T1 - 691 - 12
 
@@ -16,11 +17,13 @@ Linear.
 ## Execução
 
 ```bash
-python3 simulador.py       # M4 — fila única
-python3 M6/simulador.py    # M6 — duas filas em tandem
+python3 simulador.py                    # M4 — fila única
+python3 M6/simulador.py                 # M6 — duas filas em tandem
+python3 T1/simulador.py T1/modelo.yml   # T1 — rede de filas genérica, descrita em YAML
 ```
 
-Sem dependências externas. Cada simulador também grava a saída em `resultados.txt`.
+Sem dependências externas (Python 3.8+, apenas biblioteca padrão). Cada simulador também grava a
+saída em um `.txt` ao lado do script.
 
 ## Configuração
 
@@ -114,3 +117,141 @@ Tempo global da simulação: **100.866,1067**
 Os resultados foram conferidos contra o simulador de rede de filas de referência da disciplina
 (`simulator.jar`), alimentado com a mesma sequência de 100.000 aleatórios: as duas saídas coincidem
 em todas as casas decimais reportadas.
+
+## T1 (M8) | Simulador genérico para rede de filas
+
+O simulador do T1 não tem topologia fixa: ele **carrega o modelo inteiro de um arquivo `.yml`**, no
+mesmo estilo do simulador de referência do módulo 3. Para simular outra rede basta escrever outro
+arquivo — nada muda no código.
+
+```bash
+python3 T1/simulador.py <modelo.yml> [saida.txt]
+```
+
+Sem instalar nada. Se o segundo argumento for omitido, a saída vai para `<modelo>.txt`. O relatório
+sai no terminal e no arquivo.
+
+```bash
+python3 T1/simulador.py T1/modelo.yml              # modelo do enunciado do T1
+python3 T1/simulador.py T1/modelo-fila2-4a6.yml    # variante: Fila 2 atendendo em 4..6
+python3 T1/simulador.py T1/modelo-m6.yml           # rede do M6, usada como regressão
+```
+
+### Formato do arquivo de modelo
+
+```yaml
+arrivals:            # filas que recebem clientes de fora + instante da 1ª chegada
+  F1: 2.0
+queues:
+  F1:
+    servers: 1       # nº de servidores (c)
+    minArrival: 2.0  # intervalo entre chegadas externas — só em filas de arrivals
+    maxArrival: 4.0
+    minService: 1.0  # intervalo de atendimento
+    maxService: 2.0
+                     # capacity ausente = capacidade INFINITA (G/G/1)
+  F2:
+    servers: 2
+    capacity: 5      # capacidade total K, servidores inclusos (G/G/2/5)
+    minService: 4.0
+    maxService: 8.0
+network:             # arestas de roteamento; o que faltar para 1,0 é saída do sistema
+  - source: F1
+    target: F2
+    probability: 0.2
+rndnumbersPerSeed: 100000   # a simulação encerra ao consumir este aleatório
+seeds:
+  - 7
+```
+
+O parser de YAML é próprio e cobre o subconjunto acima (mapas aninhados, listas e escalares, em
+estilo de bloco ou inline `{...}` / `[...]`). Aceita comentários com `#`.
+
+### Como o simulador funciona
+
+Simulação por eventos discretos com dois tipos de evento — `CHEGADA` (cliente vindo de fora) e
+`SAIDA` (fim de atendimento em uma fila). Todo evento, antes de ser tratado, contabiliza o tempo
+decorrido no estado atual de **todas** as filas, então os tempos acumulados de cada fila sempre
+somam o tempo global.
+
+Gerador `X(n+1) = (a · Xn + c) mod M` com `a = 1.103.515.245`, `c = 12.345`, `M = 2³¹`, semente do
+campo `seeds`.
+
+**Ordem de consumo dos aleatórios** em uma saída de fila — é a convenção que faz os números
+baterem com o simulador de referência, então fica explícita aqui:
+
+1. contabiliza o tempo decorrido;
+2. o cliente deixa a fila de origem; se ainda há alguém esperando, **sorteia o atendimento da
+   origem**;
+3. **sorteia o destino** — um único aleatório, e só quando a fila tem mais de uma rota de saída;
+4. no destino, admite o cliente (ou registra perda, se cheio); se ele entra em serviço, **sorteia o
+   atendimento do destino**.
+
+### Validação
+
+`T1/modelo-m6.yml` descreve em YAML exatamente a rede do M6. Rodado no simulador do T1, reproduz
+`M6/resultados.txt` em todas as casas decimais — e o M6 já havia sido conferido contra o
+`simulator.jar` da disciplina. Isso valida o motor genérico contra a referência.
+
+### Modelo do enunciado
+
+Fila 1 `G/G/1` (chegadas 2..4, atendimento 1..2) → 0,2 para a Fila 2 e 0,8 para a Fila 3.
+Fila 2 `G/G/2/5` (atendimento 4..8) → 0,3 volta para a Fila 1, 0,5 para a Fila 3, 0,2 sai.
+Fila 3 `G/G/2/10` (atendimento 5..15) → 0,7 para a Fila 2, 0,3 sai.
+Filas vazias no início, primeiro cliente em `t = 2,0`, 100.000 aleatórios, semente 7.
+
+#### Fila 1 — G/G/1, chegadas 2..4, atendimento 1..2
+
+| Estado | Tempo acumulado | Probabilidade |
+|---:|---:|---:|
+| 0 | 20.327,4236 | 40,000000 % |
+| 1 | 26.856,1811 | 52,847192 % |
+| 2 | 3.497,9298 | 6,883174 % |
+| 3 | 135,2933 | 0,266228 % |
+| 4 | 1,7307 | 0,003406 % |
+
+Perda de clientes: **0** (capacidade infinita)
+
+#### Fila 2 — G/G/2/5, atendimento 4..8
+
+| Estado | Tempo acumulado | Probabilidade |
+|---:|---:|---:|
+| 0 | 8.427,7911 | 16,584081 % |
+| 1 | 18.050,1785 | 35,518872 % |
+| 2 | 15.353,1846 | 30,211767 % |
+| 3 | 6.765,0853 | 13,312234 % |
+| 4 | 1.884,8714 | 3,709022 % |
+| 5 | 337,4474 | 0,664024 % |
+
+Perda de clientes: **41**
+
+#### Fila 3 — G/G/2/10, atendimento 5..15
+
+| Estado | Tempo acumulado | Probabilidade |
+|---:|---:|---:|
+| 0 | 3,5971 | 0,007078 % |
+| 1 | 2,9943 | 0,005892 % |
+| 2 | 1,4563 | 0,002866 % |
+| 3 | 3,1964 | 0,006290 % |
+| 4 | 8,0643 | 0,015869 % |
+| 5 | 5,3322 | 0,010493 % |
+| 6 | 1,2906 | 0,002540 % |
+| 7 | 83,4200 | 0,164153 % |
+| 8 | 2.800,0114 | 5,509821 % |
+| 9 | 15.920,9007 | 31,328911 % |
+| 10 | 31.988,2951 | 62,946089 % |
+
+Perda de clientes: **11.656**
+
+**Tempo global da simulação: 50.818,5584**
+
+A Fila 3 é o gargalo: carga oferecida de ~7,1 clientes para 2 servidores, então ela passa 63 % do
+tempo cheia e descarta 11.656 clientes. A Fila 2 sofre bem menos (41 perdas) e a Fila 1, de
+capacidade infinita, fica estável com o servidor ocioso 40 % do tempo — o represamento nas filas 2
+e 3 corta a realimentação que voltaria para ela.
+
+### Variante Fila 2 em 4..6
+
+O diagrama do enunciado marca `4..8min` na Fila 2, mas o arquivo modelo em Word rotula
+"atendimento entre 4..6". `T1/modelo-fila2-4a6.yml` cobre a segunda leitura; resultado completo em
+`T1/resultados-fila2-4a6.txt` (tempo global **50.944,4428**, perdas de **0 / 8 / 11.556**).
