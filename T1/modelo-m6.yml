@@ -1,4 +1,3 @@
-# Modelo de regressao: reproduz a rede do M6, ja validada contra o simulator.jar
 arrivals:
   F1: 2.5
 queues:
